@@ -36,11 +36,11 @@ ydat = c(sin(0.5*xdat)/2)+0.6
 lowlim=rep(-1,3*ls)
 highlim=rep(1,3*ls)
 #Test
-swarm_state <- initialize_swarm(desired_values = ydat,param_len = 3*ls,lowlim=lowlim,highlim=highlim,ineq_w = c(),eq_w = c())
+swarm_state <- initialize_swarm(desired_values = ydat,param_len = 3*ls,lowlim=lowlim,highlim=highlim,ineq_w = c(),eq_w = c(),config = swarm.config(swarm_size = 100))
 
 for (itt in 1:50){
   tempcontrol = swarm.control(poly_w=0.2,stoch_w = 1e-2)
-  swarm_state <- step_swarm(desired_values = ydat,swarm_state,ineq_w = c(),eq_w = c(),config = swarm.config(swarm.control = tempcontrol))
+  swarm_state <- step_swarm(desired_values = ydat,swarm_state,ineq_w = c(),eq_w = c(),config = swarm.config(swarm_size=100,swarm.control = tempcontrol))
   matplot(xdat,swarm_state$pout,type="l",col="grey",ylim=c(0,1.2))
   points(xdat,ydat)
   surrogate_out <- surrogate_model(as.vector(swarm_state$poly_rec),swarm_state$polyouts,swarm_state$centersaves,deg=1)

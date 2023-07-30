@@ -39,7 +39,7 @@ highlim=rep(1,6)
 swarm_state <- initialize_swarm(desired_values = ydat,param_len = 6,lowlim=lowlim,highlim=highlim,ineq_w = c(),eq_w=c(),config = swarm.config(swarm_size=21,num_cluster=3,deg=1))
 
 for (itt in 1:20){
-  tempcontrol = swarm.control(poly_w=0.5,stoch_w = 0.1)
+  tempcontrol = swarm.control(poly_w=0.5,stoch_w = 0.5)
   swarm_state <- step_swarm(desired_values = ydat,swarm_state,ineq_w = c(),eq_w=c(),config = swarm.config(swarm_size=21,num_cluster=3,swarm.control = tempcontrol))
   print(min(apply(swarm_state$best_p,1,DiceKriging::hartman6)))
   matplot(t(swarm_state$best_p),type="l",col="grey")
