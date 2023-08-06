@@ -1,1 +1,1 @@
-# StochasticSurrogateSwarm
+# ScedasticSurrogateSwarmR
