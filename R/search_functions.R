@@ -8,13 +8,15 @@
 #' @param gen should a new search be initiated from a new location
 #' @param search_mag magnitude of the local search
 #' @param search_samples number of searches to perform around sample point
+#' @param revert_best if suboptimization does not improve solution, do we revert to the previous?
 #' @return search configuration parameter list
 #' @export
-search.config <- function(deg=2,gen=F,search_mag=NULL,search_samples=NULL){
+search.config <- function(deg=2,gen=F,search_mag=NULL,search_samples=NULL,revert_best=F){
   list(deg = deg,
        gen = gen,
        search_mag = search_mag,
-       search_samples = search_samples)
+       search_samples = search_samples,
+       revert_best = revert_best)
 }
 
 ##############################################################################
@@ -75,6 +77,7 @@ step_search <- function(desired_values,search_state,ineq_w,eq_w,config = search.
   centersaves <- search_state$centersaves
   gen <- config$gen
   pouts <- search_state$pouts
+  revert_best <- config$revert_best
 
   param_len <- dim(pos.x)[2]
   if (is.null(config$search_mag)){
@@ -91,28 +94,44 @@ step_search <- function(desired_values,search_state,ineq_w,eq_w,config = search.
 
   vel[(pos.x+vel)<lowlim] = -vel[(pos.x+vel)<lowlim]/100
   vel[(pos.x+vel)>highlim] = -vel[(pos.x+vel)>highlim]/100
-  pos.x_old <- pos.x
+  pos.xold <- pos.x
   pos.x <- pos.x+vel
 
   if (gen){
     pos.x = rbind(pos.x,runif(param_len,lowlim,highlim))
   }
 
+  new_outs = apply(pos.x,1,modf)
+
+  if (revert_best){
+  for (ip in 1:dim(pos.x)[1]){
+    if (!is.null(search_state$current_pout)){
+      if (ip %in% 1:dim(search_state$current_pout)[2]){
+        oldscore <- fitness_fun(search_state$current_pout[,ip],desired_values,ineq_w,eq_w)
+        newscore <- fitness_fun(new_outs[,ip],desired_values,ineq_w,eq_w)
+        if (oldscore<newscore){
+          pos.x[ip,]=pos.xold[ip,]
+        }
+      }
+    }
+  }
+  }
+
   poly_recs = c()
-  current_pout = c()
+  current_pout = matrix(NA,nrow=dim(new_outs)[1],ncol = dim(pos.x)[1])
   for (ip in sample(1:dim(pos.x)[1])){
     centersaves = rbind(centersaves,pos.x[ip,])
 
     search_low = pmax(lowlim,pos.x[ip,]-(highlim-lowlim)*search_mag)
     search_high = pmin(highlim,pos.x[ip,]+(highlim-lowlim)*search_mag)
 
-    xpin = rbind(sample_lhs_around_center(pos.x[ip,],
+    xpin = sample_lhs_around_center(pos.x[ip,],
                              n_samples = search_samples,
                              search_low-pos.x[ip,],
-                             search_high-pos.x[ip,]),
-                     pos.x[ip,])
-    pout <- apply(xpin,1,modf)
-    current_pout <- cbind(current_pout,pout[,dim(pout)[2]])
+                             search_high-pos.x[ip,])
+    pout <- cbind(apply(xpin,1,modf),new_outs[,ip])
+    xpin <- rbind(xpin,pos.x[ip,])
+    current_pout[,ip]<-pout[,dim(pout)[2]]
     pouts <- cbind(pouts,pout)
 
     outgs<-apply(pout,2,function(aa)fitness_fun(aa,desired_values,ineq_w,eq_w))

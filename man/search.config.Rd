@@ -4,7 +4,13 @@
 \alias{search.config}
 \title{Search Function configuration}
 \usage{
-search.config(deg = 2, gen = F, search_mag = NULL, search_samples = NULL)
+search.config(
+  deg = 2,
+  gen = F,
+  search_mag = NULL,
+  search_samples = NULL,
+  revert_best = F
+)
 }
 \arguments{
 \item{deg}{degree of surrogate polynomial}
