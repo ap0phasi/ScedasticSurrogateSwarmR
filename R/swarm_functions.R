@@ -1,4 +1,4 @@
-#Functions for Stochastic Surrogate Swarm Optimization
+#Functions for Scedastic Surrogate Swarm Optimization
 
 ##############################################################################
 #' Construct Polynomial Instance
@@ -9,6 +9,7 @@
 #' @param dat input data
 #' @param degree polynomial degree
 #' @return polynomial input array
+#' @export
 make_poly <- function(dat,degree){
   if (degree==1){
     return(dat)
@@ -17,6 +18,19 @@ make_poly <- function(dat,degree){
   }
 }
 
+##############################################################################
+#' Customization of error function
+#'
+#' Allows for different error functions to be used
+#'
+#' @param actual known values
+#' @param predicted desired values
+#' @param type what error function should be used?
+##' \itemize{
+##'  \item{"abs"}{ Sum of absolute errors}
+##'  \item{"rme"}{ Root mean squared error}
+##' }
+#' @return error value
 error_function <- function(actual,predicted,type="abs"){
   if (type=="rmse") {
     error <- sqrt(mean((actual - predicted)^2))
@@ -28,6 +42,16 @@ error_function <- function(actual,predicted,type="abs"){
   return(error)
 }
 
+##############################################################################
+#' Fit Polynomial Instance
+#'
+#' Function to fit polynomial to observed data
+#'
+#' @param X_poly Polynomial input array
+#' @param y Response values to fit polynomial to
+#' @param crossval Should cross validation be used in fitting?
+#' @return polynomial coefficients
+#' @export
 fit_poly <- function(X_poly, y,crossval = F) {
   if (length(y)<100){
     poly_fit <- lm(y ~ X_poly)
@@ -45,6 +69,13 @@ fit_poly <- function(X_poly, y,crossval = F) {
   return(poly_coef)
 }
 
+##############################################################################
+#' Generalized Normalization Function
+#'
+#' Function to perform robust normalization in case the sum of x is 0.
+#'
+#' @param x unnormalized array
+#' @return normalized array
 normalize <- function(x){
   if (!sum(x)==0){
     return(x/sum(x))
@@ -53,6 +84,17 @@ normalize <- function(x){
   }
 }
 
+##############################################################################
+#' Fitness Function
+#'
+#' Evaluate accuracy of solution
+#'
+#' @param mod_vals outputs of model function with current inputs
+#' @param desired_vals desired outputs
+#' @param ineq_w weights of inequality constraints
+#' @param eq_w weights of equality constraints
+#' @return fitness score
+#' @export
 fitness_fun <- function(mod_vals,desired_vals,ineq_w,eq_w){
   numineq = length(ineq_w)
   numeq = length(eq_w)
@@ -73,6 +115,27 @@ fitness_fun <- function(mod_vals,desired_vals,ineq_w,eq_w){
   return(sum(c(mod_score,eq_score*eq_w,ineq_score*ineq_w)))
 }
 
+##############################################################################
+#' Evaluate Surrogate Model
+#'
+#' Evaluate the constructed surrogate model of the true function based on proximity
+#' to centers and respective polynomials fit to response
+#' @param xsel selected input values to evaluate surrogate for
+#' @param polys all polynomials fit to explored responses
+#' @param centers polynomial centers
+#' @param deg degree of polynomial (recommended between 0 and 1)
+#' @param type should we only use the polynomial evaluated with the center closest to xsel?
+##' \itemize{
+##'  \item{"closest"}{ Only use the polynomial whose center is closest to xsel}
+##'  \item{"all"}{ Evaluate all polynomials and do weighting average based on distance of respective centers to xsel}
+##' }
+#' @param form should distance be evaluated with a simple absolute distance?
+##' \itemize{
+##'  \item{"matrix"}{ Evaluate distance as sum of absolute differences}
+##'  \item{"errorfun"}{ Evaluate distance with error function}
+##' }
+#' @return predicted model outputs based on surrogate
+#' @export
 surrogate_model <- function(xsel, polys, centers, deg,type = "closest",form = "matrix"){
   if (type=="closest"){
     if (form=="matrix"){
@@ -96,16 +159,47 @@ surrogate_model <- function(xsel, polys, centers, deg,type = "closest",form = "m
   return(modeled_values)
 }
 
+##############################################################################
+#' Objective Function for Suboptimization Problem
+#'
+#' Construct objective function for the suboptimization
+#' @param xsel selected input values to evaluate surrogate for
+#' @param polys all polynomials fit to explored responses
+#' @param desired_vals desired outputs
+#' @param centers polynomial centers
+#' @param deg degree of polynomial (recommended between 0 and 1)
+#' @return objective function score
+#' @export
 poly_obj_fn <- function(xsel, polys, desired_values,centers,deg) {
   modeled_values <- surrogate_model(xsel,polys,centers,deg)
   obj_value <- error_function(desired_values,modeled_values)
   return(obj_value)
 }
 
+##############################################################################
+#' Heteroscedastic Loss Function
+#'
+#' Function to determine heteroscedastic loss
+#' @param goal desired outputs
+#' @param mean modeled means
+#' @param sd modeled standard deviations
+#' @return heteroscedastic loss
+#' @export
 hetloss <- function(goal,mean,sd){
   return(1/(2*sd^2)*abs(goal-mean)^2+1/2*log(sd^2))
 }
 
+
+##############################################################################
+#' Cluster Particles in Swarm
+#'
+#' Group particles in swarm into clusters
+#' @param x.p positions of particles in swarm
+#' @param num_cluster how many clusters should the particles be grouped into?
+#' @param min_points what is the minimum number of partciles that should be in a cluster?
+#' @return cluster assignment for each particle in swarm
+#' @return cluster centers
+#' @export
 cluster_swarm <- function(x.p,num_cluster,min_points){
   cluster_res = kmeans(x.p,num_cluster)
   small_clusters <- names(table(cluster_res$cluster)[table(cluster_res$cluster) < min_points])
@@ -117,6 +211,20 @@ cluster_swarm <- function(x.p,num_cluster,min_points){
   return(cluster_res)
 }
 
+##############################################################################
+#' Scedastic Surrogate Swarm Control
+#'
+#' Establish weights and importances for Scedastic Surrogate Swarm for determining new
+#' particle velocities.
+#' @param stoch_w how much influence does scedastic factor have?
+#' @param vel_w how much influence does the previous velocity have?
+#' @param r_p_w how much influence does the particle's historical best position have?
+#' @param r_g_w how much influence does the global current best position have?
+#' @param r_go_w how much influence does the global historical best position have?
+#' @param poly_w how much influence does the suboptimized surrogate function have?
+#' @param sens_overall do we use the overall sensitivity when backpropagating the stochastic factor?
+#' @return control list
+#' @export
 swarm.control <- function(stoch_w = 0.1,
                       vel_w = 0.5,
                       r_p_w = 0.3,
@@ -133,6 +241,19 @@ swarm.control <- function(stoch_w = 0.1,
        sens_overall = sens_overall)
 }
 
+##############################################################################
+#' Scedastic Surrogate Swarm Configuration
+#'
+#' Establish parameters for evaluating Scedastic Surrogate Swarm
+#' @param swarm_size number of particles in swarm
+#' @param num_cluster number of clusters for grouping particles
+#' @param min_points minimum number of particles per cluster
+#' @param deg degree of surrogate polynomial
+#' @param localityfac what level of locality to use when determining global values (1 would be full global topology)
+#' @param opt_from_best when performing suboptimization should we start from the best known position?
+#' @param swarm.control swarm control weight list
+#' @return swarm configuration parameter list
+#' @export
 swarm.config <- function(swarm_size = 100,
                          num_cluster = 1,
                          min_points = 3,
@@ -149,6 +270,20 @@ swarm.config <- function(swarm_size = 100,
   list(swarm_size = swarm_size,num_cluster = num_cluster,min_points = min_points,deg = deg,localityfac=localityfac,opt_from_best=opt_from_best,swarm.control=swarm.control)
 }
 
+##############################################################################
+#' Initialize Scedastic Surrogate Swarm Optimization
+#'
+#' Function to establish initial positions and velocities of Scedastic Surrogate Swarm
+#'
+#' @param desired_vals desired outputs
+#' @param param_len dimensionality of optimization problem
+#' @param lowlim lower bound of input values
+#' @param highlim upper bound of input values
+#' @param ineq_w inequality constraint weights
+#' @param eq_w equality contstraint weights
+#' @param config swarm configuration list
+#' @return swarm state list
+#' @export
 initialize_swarm <-function(desired_values,param_len,lowlim,highlim,ineq_w,eq_w,config = swarm.config()){
   numineq = length(ineq_w)
   numeq = length(eq_w)
@@ -194,19 +329,18 @@ initialize_swarm <-function(desired_values,param_len,lowlim,highlim,ineq_w,eq_w,
                       pows = NULL)
 }
 
-sample_lhs_around_center <- function(center, n_samples, range_min, range_max) {
-  n_dim <- length(center)
-
-  lhs_samples <- lhs::randomLHS(n = n_samples, k = n_dim)
-  #lhs_samples <- lhs::optimumLHS(n_samples,n_dim,10,0.05)
-
-  scaled_samples <- sweep(lhs_samples, 2, range_max - range_min, FUN = "*")
-  shifted_samples <- sweep(scaled_samples, 2, range_min, FUN = "+")
-  centered_samples <- sweep(shifted_samples, 2, center, FUN = "+")
-
-  return(centered_samples)
-}
-
+##############################################################################
+#' Step through Scedastic Surrogate Swarm optimization
+#'
+#' Function to step through Scedastic Surrogate Swarm optimization by updating swarm states
+#'
+#' @param desired_vals desired outputs
+#' @param swarm_state swarm state list
+#' @param ineq_w inequality constraint weights
+#' @param eq_w equality constraint weights
+#' @param config swarm configuration list
+#' @return swarm state list
+#' @export
 step_swarm <- function(desired_values,swarm_state,ineq_w,eq_w,config = swarm.config()){
   x.p <- swarm_state$x.p
   vel <- swarm_state$vel
@@ -365,6 +499,15 @@ step_swarm <- function(desired_values,swarm_state,ineq_w,eq_w,config = swarm.con
   )
 }
 
+##############################################################################
+#' Model Function
+#'
+#' Concatenate outputs of user defined model function with user defined inequality
+#' and equality constraints
+#'
+#' @param params model input array
+#' @return model output array with constraint values
+#' @export
 modf <- function(params){
   modval <- model_function(params)
   modout <- c(modval,eq(params),ineq(params))

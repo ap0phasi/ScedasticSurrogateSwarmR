@@ -1,4 +1,15 @@
+#Functions for Scedastic Surrogate Search Optimization
 
+##############################################################################
+#' Search Function configuration
+#'
+#' Establish parameters for surrogate search optimization
+#' @param deg degree of surrogate polynomial
+#' @param gen should a new search be initiated from a new location
+#' @param search_mag magnitude of the local search
+#' @param search_samples number of searches to perform around sample point
+#' @return search configuration parameter list
+#' @export
 search.config <- function(deg=2,gen=F,search_mag=NULL,search_samples=NULL){
   list(deg = deg,
        gen = gen,
@@ -6,6 +17,17 @@ search.config <- function(deg=2,gen=F,search_mag=NULL,search_samples=NULL){
        search_samples = search_samples)
 }
 
+##############################################################################
+#' Initialize Surrogate Search Optimization
+#'
+#' Function to establish initial positions of surrogate searcher
+#'
+#' @param param_len dimensionality of optimization problem
+#' @param lowlim lower bound of input values
+#' @param highlim upper bound of input values
+#' @param config search configuration list
+#' @return search state list
+#' @export
 initialize_search <- function(param_len,lowlim,highlim,config = search.config()){
 
   pos.x = matrix(runif(param_len,lowlim,highlim),nrow=1)
@@ -28,6 +50,18 @@ initialize_search <- function(param_len,lowlim,highlim,config = search.config())
                        pouts = c())
 }
 
+##############################################################################
+#' Step through surrogate search optimization
+#'
+#' Function to step through surrogate search optimization by updating search states
+#'
+#' @param desired_vals desired outputs
+#' @param search_state search state list
+#' @param ineq_w inequality constraint weights
+#' @param eq_w equality constraint weights
+#' @param config search configuration list
+#' @return search state list
+#' @export
 step_search <- function(desired_values,search_state,ineq_w,eq_w,config = search.config()){
   pos.x = search_state$pos.x
   vel = search_state$vel
@@ -55,10 +89,9 @@ step_search <- function(desired_values,search_state,ineq_w,eq_w,config = search.
     search_samples <- config$search_samples
   }
 
-
-
   vel[(pos.x+vel)<lowlim] = -vel[(pos.x+vel)<lowlim]/100
   vel[(pos.x+vel)>highlim] = -vel[(pos.x+vel)>highlim]/100
+  pos.x_old <- pos.x
   pos.x <- pos.x+vel
 
   if (gen){
@@ -67,7 +100,6 @@ step_search <- function(desired_values,search_state,ineq_w,eq_w,config = search.
 
   poly_recs = c()
   current_pout = c()
-
   for (ip in sample(1:dim(pos.x)[1])){
     centersaves = rbind(centersaves,pos.x[ip,])
 
@@ -119,6 +151,7 @@ step_search <- function(desired_values,search_state,ineq_w,eq_w,config = search.
     poly_rec = array(result$optim$bestmem)
     poly_recs = rbind(poly_recs,poly_rec)
   }
+
   vel = 1*(poly_recs - pos.x)
 
   search_state <- list(pos.x = pos.x,
@@ -136,6 +169,49 @@ step_search <- function(desired_values,search_state,ineq_w,eq_w,config = search.
                        current_pout=current_pout)
 }
 
+##############################################################################
+#' Perform Latin Hypercube Sampling around a Center Point
+#'
+#' Function to do Latin Hypercube Sampling around a central location based on
+#' allowable ranges
+#'
+#' @param center center point location
+#' @param n_samples number of Latin Hypercube samples to perform
+#' @param range_min lower bound of sampling
+#' @param range_max upper bound of sampling
+#' @return latin hypercube samples
+#' @export
+sample_lhs_around_center <- function(center, n_samples, range_min, range_max) {
+  n_dim <- length(center)
+
+  lhs_samples <- lhs::randomLHS(n = n_samples, k = n_dim)
+  #lhs_samples <- lhs::optimumLHS(n_samples,n_dim,10,0.05)
+
+  scaled_samples <- sweep(lhs_samples, 2, range_max - range_min, FUN = "*")
+  shifted_samples <- sweep(scaled_samples, 2, range_min, FUN = "+")
+  centered_samples <- sweep(shifted_samples, 2, center, FUN = "+")
+
+  return(centered_samples)
+}
+
+##############################################################################
+#' Convert Search Results into Initial Scedastic Surrogate Swarm Position
+#'
+#' Function to convert the results of a surrogate search into the initial locations
+#' of a Scedastic Surrogate Swarm optimization, preserving the learned behaviour
+#' by passing saved surrogates
+#'
+#' @param search_state search state list
+#' @param usevec which of the search instances to use
+#' @param desired_vals desired outputs
+#' @param param_len dimensionality of optimization problem
+#' @param lowlim lower bound of input values
+#' @param highlim upper bound of input values
+#' @param ineq_w inequality constraint weights
+#' @param eq_w equality contstraint weights
+#' @param config swarm configuration list
+#' @return swarm state list
+#' @export
 convert_search_to_swarm <- function(search_state,usevec,desired_values,param_len,lowlim,highlim,ineq_w,eq_w,config = swarm.config()){
   numineq = length(ineq_w)
   numeq = length(eq_w)
