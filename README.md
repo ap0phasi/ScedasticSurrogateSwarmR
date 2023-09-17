@@ -27,3 +27,14 @@ Utilizing heteroscedastic loss of the swarm population, the algorithm enforces d
 In lieu of using a full swarm, SSSO supports single- or multi- agent searches that use surrogate model approximation. 
 For simple problems, this search can be used on its own, while in more complex applications it can be used to initialize the
 swarm optimizer where all learned surrogates are provided to the swarm.
+
+## Usage
+Please refer to the vignettes for usage and examples:
+
+1. [Introduction]
+2. [Fit Basis Functions]
+3. [Fit Neural Network]
+
+[Introduction]: http://htmlpreview.github.io/?https://github.com/ap0phasi/ScedasticSurrogateSwarmR/blob/main/vignettes/introduction.html
+[Fit Basis Functions]: http://htmlpreview.github.io/?https://github.com/ap0phasi/ScedasticSurrogateSwarmR/blob/main/vignettes/fit_radial_basis_functions.html
+[Fit Neural Network]: http://htmlpreview.github.io/?https://github.com/ap0phasi/ScedasticSurrogateSwarmR/blob/main/vignettes/nn_optimization.html

@@ -36,7 +36,7 @@ search_state <- initialize_search(param_len = 2,lowlim=lowlim,highlim=highlim,co
 
 genstate = F
 for (itt in 1:10){
-  tempconfig = search.config(gen = genstate)
+  tempconfig = search.config(gen = genstate,revert_best = T)
   search_state <- step_search(desired_values = ydat,search_state,ineq_w = c(),eq_w=c(),config = tempconfig)
   plot(search_state$xpins)
 

@@ -1,6 +1,6 @@
 ---
-title: "introduction"
-output: rmarkdown::html_vignette
+title: "Scedastic Surrogate Swarm R Package Introduction"
+output: html_document
 vignette: >
   %\VignetteIndexEntry{introduction}
   %\VignetteEngine{knitr::rmarkdown}
@@ -13,8 +13,6 @@ knitr::opts_chunk$set(
   comment = "#>"
 )
 ```
-
-# Scedastic Surrogate Swarm R Package Introduction
 
 ```{r setup}
 rm(list=ls())
@@ -70,7 +68,7 @@ swarm_state <- initialize_swarm(desired_values = ydat,param_len = 2,lowlim=lowli
 ```
 
 Then we simply step through the optimization, graphing the progress as we wish:
-```{r,animation.hook="gifski",fig.width=10,fig.height=5}
+```{r,animation.hook="gifski",fig.width=9,fig.height=5}
 for (itt in 1:10){
   tempcontrol = swarm.control(poly_w=0.2,stoch_w = 0.01)
   swarm_state <- step_swarm(desired_values = ydat,swarm_state,ineq_w = c(),eq_w=c(),config = swarm.config(swarm_size=100,num_cluster=3,swarm.control = tempcontrol))
@@ -90,7 +88,7 @@ print(paste("Number of function evals: ",dim(swarm_state$allxp)[1]))
 ## Search Optimization
 
 We can also use the Scedastic Surrogate Swarm package to do non-swarm searching using surrogates:
-```{r}
+```{r,animation.hook="gifski",fig.width=9,fig.height=5}
 search_state <- initialize_search(param_len = 2,lowlim=lowlim,highlim=highlim,config = search.config())
 
 genstate = F
@@ -121,7 +119,7 @@ print(paste("Number of function evals: ",dim(search_state$xpins)[1]))
 ## Search-Initialized Scedastic Surrogate Swarm Optimization
 We can then convert these search states and the learned surrogates into the initialization of a Scedastic Surrogate Swarm
 
-```{r}
+```{r,animation.hook="gifski",fig.width=9,fig.height=5}
 usevec = (dim(search_state$xpins)[1]-50):dim(search_state$xpins)[1]
 
 #Swap into particle swarm

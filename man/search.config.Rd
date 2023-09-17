@@ -20,6 +20,8 @@ search.config(
 \item{search_mag}{magnitude of the local search}
 
 \item{search_samples}{number of searches to perform around sample point}
+
+\item{revert_best}{if suboptimization does not improve solution, do we revert to the previous?}
 }
 \value{
 search configuration parameter list
