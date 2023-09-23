@@ -1,0 +1,254 @@
+---
+title: "Scedastic Surrogate Swarm R Package - Fitting Keras"
+output: html_document
+vignette: >
+  %\VignetteIndexEntry{keras_optimization}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r init}
+rm(list=ls())
+library(ScedasticSurrogateSwarmR)
+library(keras)
+library(dplyr)
+set.seed(128)
+```
+
+
+## Problem Setup
+
+In the previous example, SSSoR was used to optimize the weights of a neural network. In that example the simple neural network was built from scratch with matrix operations, but it is important to note that SSSoR can also optimize models built in Keras. This also gives us the opportunity to compare performance to a gradient-based optimizer like Adam.
+
+```{r}
+ndat = 100
+xdat=sort(runif(ndat,-10,10))
+ydat = c(sin(0.5*xdat)/2)+0.6
+```
+
+## Optimization of Keras Model with Adam
+
+We will use keras to build an identical neural network to our previous example. 
+```{r}
+# Define the model
+model <- keras_model_sequential()
+
+# Add a single hidden layer with 64 neurons and ReLU activation
+model %>%
+  layer_dense(units = 20, input_shape = c(1)) %>%
+#  layer_dense(units = 20, input_shape = c(1)) %>%
+  layer_activation_leaky_relu(alpha = 0.03)
+
+# Add the output layer with a single neuron (regression problem)
+model %>%
+  layer_dense(units = 1,use_bias = F)
+
+# Compile the model
+model %>% compile(
+  loss = 'mean_squared_error', # You can choose a different loss function if needed
+  optimizer = optimizer_adam() # You can choose a different optimizer if needed
+)
+
+```
+
+We will use Adam to train this neural network. 
+```{r}
+# Fit the model to your data
+history <- model %>%
+  fit(
+    x = xdat,
+    y = ydat,
+    epochs = 100, # You can adjust the number of epochs as needed
+    batch_size = 1,
+    verbose = 2
+  )
+```
+
+Unsurprisingly, Adam does well optimizing a simple neural network such as this. 
+```{r}
+y_model <- model %>% predict(xdat)
+
+plot(xdat,ydat)
+lines(xdat,y_model)
+```
+
+## SSSoR Attempt
+
+Let us now use SSSoR to optimize the same neural network. First let's get the layer dimensions of the keras model.  
+```{r}
+# creation function to assign to weights to keras
+weight_dims <- lapply(get_weights(model),dim)
+weight_num <- sum(unlist(lapply(weight_dims,prod)))
+
+lowlim=rep(-1,weight_num)
+highlim=rep(1,weight_num)
+```
+
+Now we will make a simple function to transform a 1D array into the required Keras weights. 
+```{r}
+assign_keras_weights <- function(new_array,weight_dims){
+  #initialize weight matrix
+  weight_mat_new <- list()
+  arr_start <- 0
+  #Loop through weight matrices
+  for (iw in 1:length(weight_dims)){
+    matdim = weight_dims[[iw]]
+    arr_end = arr_start+prod(matdim)
+    weight_mat_new[[iw]] = array(new_array[(arr_start+1):arr_end],dim=matdim)
+    arr_start = arr_end
+  }
+  
+  return(weight_mat_new)
+}
+
+```
+
+Now we can establish our model functions and constraints as before. 
+```{r}
+model_function <-function(params,ls){
+  new_weights <- assign_keras_weights(params,weight_dims)
+  newmodel <- model
+  
+  set_weights(newmodel,new_weights)
+  
+  modval <- newmodel %>% predict(xdat,verbose = F)
+  
+  return(modval)
+}
+
+#Equality Constraints
+eq <- function(params){
+  constraints = c(
+  )
+  return(constraints)
+}
+
+#Inequality Constraints
+# of form <= 0
+ineq <- function(params){
+  constraints = c(
+  )
+  return(constraints)
+}
+```
+
+
+### Swarm Optimization
+Using a Scedastic Surrogate Swarm optimization:
+```{r,animation.hook="gifski",fig.width=9,fig.height=5,warning=FALSE}
+swarm_state <- initialize_swarm(desired_values = ydat,
+                                param_len = weight_num,
+                                lowlim=lowlim,
+                                highlim=highlim,
+                                ineq_w = c(),
+                                eq_w = c(),
+                                config = swarm.config(swarm_size = 100))
+
+for (itt in 1:50){
+  tempcontrol = swarm.control(poly_w=0.2,stoch_w = 0.01)
+  swarm_state <- step_swarm(desired_values = ydat,
+                            swarm_state,
+                            ineq_w = c(),
+                            eq_w=c(),
+                            config = swarm.config(swarm_size=dim(swarm_state$x.p)[1],
+                                                  num_cluster=1,
+                                                  swarm.control = tempcontrol))
+  par(oma=c(0, 0, 0, 5))
+  matplot(xdat,swarm_state$pout,type="l",col="grey",xlab = NULL,ylab="value",ylim = c(0,1.2))
+  points(xdat,ydat)
+  surrogate_out <- surrogate_model(as.vector(swarm_state$poly_rec),swarm_state$polyouts,swarm_state$centersaves,deg=1)
+  lines(xdat,surrogate_out,col="blue")
+  lines(xdat,model_function(as.vector(swarm_state$poly_rec)),col="red")
+  title(paste0("Scedastic Surrogate Swarm Optimization, step = ",itt))
+  legend(par('usr')[2], par('usr')[4], bty='n',
+         xpd=NA,c("Observed","Modeled","Predicted","Actual"),fill=c("black","grey","blue","red"))
+}
+
+print(paste("Number of function evals: ",dim(swarm_state$allxp)[1]))
+```
+
+## Search Optimization
+
+We can also use the Scedastic Surrogate Swarm package to do non-swarm searching using surrogates:
+```{r,animation.hook="gifski",fig.width=9,fig.height=5,warning=FALSE}
+search_state <- initialize_search(param_len = weight_num,
+                                  lowlim=lowlim,
+                                  highlim=highlim,
+                                  config = search.config(deg=1))
+
+genstate = F
+for (itt in 1:7){
+  tempconfig = search.config(gen = genstate,deg=1,
+                             search_samples = weight_num*2,
+                             search_mag=0.1,
+                             revert_best = T)
+  search_state <- step_search(desired_values = ydat,search_state,ineq_w = c(),eq_w=c(),config = tempconfig)
+
+  modout = model_function(as.vector(search_state$poly_recs[1,]))
+  surrogate_out <- surrogate_model(as.vector(search_state$poly_recs[1,]),search_state$polyouts,search_state$centersaves,deg=1)
+  if (mean(abs((modout-surrogate_out)/modout))>10){
+    genstate = T
+  }else{
+    genstate = F
+  }
+  par(oma=c(0, 0, 0, 5))
+  matplot(xdat,search_state$current_pout,type="l",col="grey",xlab = NULL,ylab="value",ylim = c(0,1.2))
+  points(xdat,ydat)
+  lines(xdat,surrogate_out,col="blue")
+  lines(xdat,model_function(as.vector(search_state$poly_recs[1,])),col="red")
+  title(paste0("Surrogate Search Optimization, step = ",itt))
+  legend(par('usr')[2], par('usr')[4], bty='n', xpd=NA,c("Observed","Modeled","Predicted","Actual"),fill=c("black","grey","blue","red"))
+}
+print(paste("Number of function evals: ",dim(search_state$xpins)[1]))
+```
+
+
+## Search-Initialized Scedastic Surrogate Swarm Optimization
+We can then convert these search states and the learned surrogates into the initialization of a Scedastic Surrogate Swarm
+
+```{r,animation.hook="gifski",fig.width=9,fig.height=5,warning=FALSE}
+#usevec = c(sample(1:dim(search_state$xpins)[1],weight_num),dim(search_state$xpins)[1])
+usevec = (dim(search_state$xpins)[1]-100):dim(search_state$xpins)[1]
+
+#Swap into particle swarm
+swarm_state <- convert_search_to_swarm(search_state = search_state,
+                                       usevec = usevec,
+                                       desired_values = ydat,
+                                       param_len = weight_num,
+                                       lowlim=lowlim,
+                                       highlim=highlim,
+                                       ineq_w = c(),
+                                       eq_w=c(),
+                                       config = swarm.config(
+                                         swarm_size=length(usevec),
+                                         num_cluster=1,
+                                         deg=1)
+                                       )
+
+for (itt in 1:20){
+  tempcontrol = swarm.control(poly_w=0.2,stoch_w = 0.01)
+  swarm_state <- step_swarm(desired_values = ydat,
+                            swarm_state,
+                            ineq_w = c(),
+                            eq_w=c(),config = swarm.config(swarm_size=length(usevec),
+                                                           num_cluster=1,
+                                                           swarm.control = tempcontrol))
+  par(oma=c(0, 0, 0, 5))
+  matplot(xdat,swarm_state$pout,type="l",col="grey",xlab = NULL,ylab="value",ylim = c(0,1.2))
+  points(xdat,ydat)
+  surrogate_out <- surrogate_model(as.vector(swarm_state$poly_rec),swarm_state$polyouts,swarm_state$centersaves,deg=1)
+  lines(xdat,surrogate_out,col="blue")
+  lines(xdat,model_function(as.vector(swarm_state$poly_rec),ls),col="red")
+  title(paste0("Search-Initialized Scedastic Surrogate Swarm Optimization, step = ",itt))
+  legend(par('usr')[2], par('usr')[4], bty='n',
+         xpd=NA,c("Observed","Modeled","Predicted","Actual"),fill=c("black","grey","blue","red"))
+}
+print(paste("Number of function evals: ",dim(swarm_state$allxp)[1]))
+```

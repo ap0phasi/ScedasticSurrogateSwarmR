@@ -34,7 +34,9 @@ Please refer to the vignettes for usage and examples:
 1. [Introduction]
 2. [Fit Basis Functions]
 3. [Fit Neural Network]
+4. [Keras Optimization]
 
 [Introduction]: http://htmlpreview.github.io/?https://github.com/ap0phasi/ScedasticSurrogateSwarmR/blob/main/vignettes/introduction.html
 [Fit Basis Functions]: http://htmlpreview.github.io/?https://github.com/ap0phasi/ScedasticSurrogateSwarmR/blob/main/vignettes/fit_radial_basis_functions.html
 [Fit Neural Network]: http://htmlpreview.github.io/?https://github.com/ap0phasi/ScedasticSurrogateSwarmR/blob/main/vignettes/nn_optimization.html
+[Keras Optimization]: http://htmlpreview.github.io/?https://github.com/ap0phasi/ScedasticSurrogateSwarmR/blob/main/vignettes/keras_optimization.html
